@@ -26,6 +26,9 @@
 SHELL= bash
 MAKE= make
 
+# Set the compiler to gcc
+CC = gcc
+
 # HomeBrew on macOS overrides (or lack of override is not found)
 #
 ifeq ($(homebrew_fftw),)
@@ -46,7 +49,7 @@ endif
 
 # make variables we pass down to override make variables set in the lower level makefile
 #
-PASSDOWN_VARS= LIBS='${LIBS}' homebrew_fftw='${homebrew_fftw}' LOC_INC='${LOC_INC}'
+PASSDOWN_VARS= CC='${CC}' LIBS='${LIBS}' homebrew_fftw='${homebrew_fftw}' LOC_INC='${LOC_INC}'
 
 SRC= src
 
@@ -54,7 +57,7 @@ SRC= src
 #
 all: sts
 
-# debug_make allows you to deterlime how HomeBrew (or lack) impacts compilation
+# debug_make allows you to determine how HomeBrew (or lack) impacts compilation
 #
 debug_make:
 	@echo DEBUG: top level makefile debug:
@@ -128,3 +131,4 @@ depend:
 
 install: all
 	cd ${SRC}; $(MAKE) $@ ${PASSDOWN_VARS}
+
