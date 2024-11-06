@@ -1,306 +1,364 @@
-# NIST Statistical Test Suite
+# NIST Statistical Test Suite (STS) Version 3
 
-**NOTE: Recent changes to this README.md file on 2023 Mar 29**:
+**Note:** Recent changes to this README.md file on **2023 Mar 29**:
 
-* The [Google Drive sts-data folder][generatordata] link has been changed to allow public access.
-* Added a "_p.s._" about LandRnd at the bottom.
-* Added link to the [improved SP800-22Rev1a paper][improved-paper].
+- The [Google Drive sts-data folder][generatordata] link has been changed to allow public access.
+- Added a "_p.s._" about LandRnd at the bottom.
+- Added link to the [improved SP800-22Rev1a paper][improved-paper].
 
-This project is a considerably improved version of the [NIST Statistical Test Suite][site] (**STS**), a collection of tests used in the evaluation of the randomness of bitstreams of data.
+This project is an enhanced version of the [NIST Statistical Test Suite][site] (**STS**), a collection of tests designed to evaluate the randomness of binary sequences. It is widely used for testing random number generators (RNGs) in cryptographic and simulation applications.
+
+## Table of Contents
+
+- [Purpose](#purpose)
+- [Applications](#applications)
+- [Requirements](#requirements)
+- [Installation](#installation)
+- [Usage](#usage)
+  - [Basic Usage](#basic-usage)
+  - [Checking Block Devices for Randomness](#checking-block-devices-for-randomness)
+  - [Expected Results](#expected-results)
+    - [Interpreting P-values](#interpreting-p-values)
+    - [NIST Compliance Criteria](#nist-compliance-criteria)
+- [Examples](#examples)
+  - [Testing a Pseudo-Random Number Generator](#testing-a-pseudo-random-number-generator)
+  - [Testing a Hardware Random Number Generator](#testing-a-hardware-random-number-generator)
+  - [Testing a Block Device](#testing-a-block-device)
+- [Advanced Usage](#advanced-usage)
+  - [Distributed Mode](#distributed-mode)
+- [Project Structure](#project-structure)
+- [Improvements Over Previous Versions](#improvements-over-previous-versions)
+- [Future Features](#future-features)
+- [Legacy Generators Usage](#legacy-generators-usage)
+- [Contributors](#contributors)
+- [License](#license)
+- [Special Thanks](#special-thanks)
 
 ## Purpose
 
-STS can be useful in:
+The NIST Statistical Test Suite is designed to:
 
-- Evaluating the randomness of bitstreams produced by hardware and software key generators for cryptographic applications.
-- Evaluating the quality of pseudo random number generators used in simulation and modeling applications.
+- Evaluate the randomness of binary sequences produced by hardware or software random number generators (RNGs).
+- Provide a comprehensive set of tests for assessing the statistical properties of RNGs used in cryptographic applications.
+- Assist in the evaluation of RNGs used in simulation and modeling applications.
+
+## Applications
+
+STS can be utilized in various scenarios, including:
+
+- **Cryptographic Key Generation**: Ensuring that keys are generated with sufficient randomness to prevent predictability.
+- **Simulation and Modeling**: Validating the quality of RNGs used in simulations to produce accurate and unbiased results.
+- **Hardware RNG Testing**: Evaluating the randomness of hardware-based RNGs, such as those derived from physical phenomena.
+- **Entropy Source Assessment**: Assessing the quality of entropy sources used in RNGs.
+
+## Requirements
+
+- **C Compiler**: A standard C compiler (e.g., GCC).
+- **FFTW3 Library**: Version 3.3.3 or later of [FFTW3][fftw], required for the Fast Fourier Transform computations.
+  - Install via package managers (e.g., `sudo apt-get install libfftw3-dev` on Debian-based systems).
+- **Make**: For building the suite.
+
+**Note**: If you cannot install FFTW3, you can compile STS without it using the legacy mode, which uses a slower algorithm.
+
+## Installation
+
+Clone the repository and build the suite:
+
+```sh
+$ git clone https://github.com/arcetri/sts.git
+$ cd sts/src
+$ make
+```
+
+If FFTW3 is not available, compile in legacy mode:
+
+```sh
+$ make legacy
+```
+
+This will generate an executable named `sts_legacy_fft`.
 
 ## Usage
 
-### Requirements
+### Basic Usage
 
-STS version 3 requires the external library [fftw3][fftw] to be installed in your system.
-This library is also available to install in most of the package managers with the name _fftw3_.
-We recommend that you compile STS version 3 with version 3.3.3 or later of fftw.
+The STS operates by processing a binary sequence in chunks (bitstreams) of a specified length. The key parameters are:
 
-If you are not able to install fftw3 in your system, but you still want to use STS, you can compile
-the program with the command `make legacy` instead of `make`. This command will make STS use another
-algorithm to compute the discrete fourier transform, which is slower but does not require external libraries.
+- **Number of Iterations (`-i`)**: The number of bitstreams to process.
+- **Length of a Single Bitstream (`-n`)**: The length of each bitstream in bits (default is 1,048,576 bits).
 
-### Get data to test
+Ensure that your input data size is at least:
 
-As mentioned above, STS has been developed with the goal of testing the randomness of data. Therefore, if you want to use STS,
-the first thing to do it to get some data generated by a pseudo-random number generator.
+```
+(number of iterations) × (length of a single bitstream) / 8 bytes
+```
 
-The [Google Drive sts-data folder][generatordata] contains some data generated by the 9 built-in PRNGs originally provided by
-NIST as part of STS, for everyone to test (refer to the README.txt there for more information on it).
-
-### How to run
-
-For a basic usage of STS, there is only one parameter you have to choose, which is the _number of iterations_.
-
-The data will be processed in _number of iterations_ chunks of a predefined _length of a single bitstream_ (which, by default,
-is 2^20 = 1048576).
-
-Therefore, it's required that the size of the data you use as input is at least:
-
-    [(number of iterations) * (length of a single bitstream) / 8] BYTES
-
-When the _number of iterations_ is high, the the results will be more accurate but the the test will be slower.
-
-Once you have chosen the data to test and the number of iterations and cloned the repository, `cd` into the sts folder, run `make`
-and then you can use the program as follows:
+**Example Command:**
 
 ```sh
 $ ./sts -v 1 -i 32 -I 1 -w . -F r /path/to/random/data
 ```
 
-Here is the meaning of the flags and the argument used in the example command:
+**Explanation of Flags:**
 
-```
-[-v 1] indicates that we want a verbosity level of 1 for the printed output (optional)
-[-i 32] indicates that we want to run 32 iterations (choose bigger numbers when possible)
-[-I 1] indicates that we want the program to tell us every time it finishes testing 1 bitstream (optional)
-[-w .] indicates the path of the folder where you want to store the testing results
-[-F r] indicates that that data will be read as raw binary data (a --> files of ASCII '0'/'1' characters)
-[/path/to/random/data] indicates the path of the data we want to use as input
-```
+- `-v 1`: Sets verbosity level to 1 (optional).
+- `-i 32`: Specifies 32 iterations (bitstreams).
+- `-I 1`: Reports progress after every iteration (optional).
+- `-w .`: Sets the working directory for output files.
+- `-F r`: Reads input data as raw binary data.
+- `/path/to/random/data`: Path to the input data file.
 
-By default, STS will use as many threads as the number of cores of the machine where it runs (to speed up the processing).
-If you want to specify a custom number of threads to use, you can do that with the `-T numOfThreads` additional flag.
-If you want to disable multi-threading, use the `-T 1` flag.
+**Note**: By default, STS uses all available CPU cores. Use `-T 1` to disable multithreading or `-T N` to use `N` threads.
 
-After the run is completed a report will be generated in a file called `result.txt`.
+After execution, results are saved in `result.txt`.
 
-__NB__: When `make legacy` is used, the compiled program to execute will be called `sts_legacy_fft` instead of `sts`.
-
-__NB__: When a data file of `-` (single dash) is used, test data is read from standard input (stdin).
-Job number (`-j jobnum`) based seeking into the data is disabled when test data is read from standard input.
-
-__NB__: For more information on the usage run `./sts -h`
-
-### [Advanced] How to run in distributed mode
-
-If you are willing to test a huge dataset (say 1TB  of input data), which could take a long time on a single computer,
-you might want to try the new STS distributed modes of operation.
-
-The distributed mode allows the user to run sts to test a specific part of the input data and save the resulting p-values of the
-testing to an output file.
-
-Thus the user can test different chunks of the input data with different machines and later collect all the
-p-values and assess them with one final run of sts in ASSESS_ONLY mode.
-
-Here is a tutorial for the distributed more:
-
-1. Decide how many bitstreams of the input data you want to test in each host.
-2. Assign to each host a number from `0` to `k - 1` (where k is the number of hosts that you want to use).
-3. Run sts with the chosen number of bitstreams in each of the hosts, using the `-m i` mode of operation (which tells STS to
-perform the testing and save the p-values in an output file, without assessing them), and with the `-j X` flag, where `X` indicates
-the number of the node that you chose in point 2.
-4. Collect the `.pvalues` file generated by each node and save them in a folder.
-5. Run sts again with the using the `-m a` mode of operation (which tells STS to assess the results of previous tests), with the
-`-d pvaluesfolder` flag (where pvaluesfolder is the folder containing the binary files collected at point 4).
-
-This way you can literally split the testing of some big input data among multiple hosts.
-
-#### Example:
-
-Consider the case of 32 hosts called node00, node01, ... node30, and node31 respectively.
-Assume each host has a copy of the test data under /random/data or that /random is an NFS mount and all hosts have
-access to the same data file.
-
-Assume that /random/data contains 3200 GB of test data, where 1 GB is 1073741824 bytes.
-Then each of the 32 hosts must process 100 GB of test data.
-
-Assume we use the default length of a single bit stream of 1048576 bits which is 131072 bytes.
-Then ***step 1*** tells us that each host must process 100 GB / 131072 bytes of test data or 819200 bitstreams.
-
-Assume each host is assigned a node number corresponding to the hostname.
-Then ***step 2*** tells us that node00 has a host number of 0, node01 has a host number of 1, and so on.
-
-Assume that each host has a workDir named /random/work.
-Further assume that at the end of the sts run, the contents of each host's /random/work is copied into a single directory,
-or that /random is a NFS mount so that /random/work will be a directory that contains the work from each host.
-Either way, at the end of the sts run, there will be 32 files containing pvalues:
-
-    /random/work/sts.00.819200.1048576.pvalue
-    /random/work/sts.01.819200.1048576.pvalue
-    ..
-    /random/work/sts.31.819200.1048576.pvalue
-
-Assume we want to report progress after every 100 iterations.
-
-Then step 3 says on each host we need execute:
+**Help Command:**
 
 ```sh
-$ ./sts -m i -w /random/work -j __host_number__ -i 819200 -I 100 -v 1 /random/data > /random/work/run.__host_number__ 2>&1
+$ ./sts -h
 ```
 
-For example, if we have ssh access to each host, then we can execute:
+### Checking Block Devices for Randomness
 
-```sh
-$ for host in $(seq -w 00 31); do
-ssh node$host nohup /some/path/sts -m i -w /random/work -j $host -i 819200 -I 100 -v 1 /random/data > /random/work/run.$host 2>&1 < /dev/null &
-done
-```
+Block devices (e.g., `/dev/random`, `/dev/urandom`, or hardware RNG devices) can be tested for randomness using STS.
 
-Assume we wait until all 32 hosts have completed their ***step 3*** runs.
-Again, we assumed that for ***step 4***, either /random is a common NFS mounted filesystem, or that we can copy the contents of
-/random/data from each host into a common /random/data filesystem.
+**Example: Testing `/dev/random`**
 
-Then for our final ***step 5***, on the host that either has NFS access to /random,
-or that the contents of /random/data was copied into /random/data on the current host,
-we need to execute:
+1. **Collect Data**:
 
-```sh
-$ ./sts -m a -d /random/work -w /random/work -v 1 /random/data
-```
+   ```sh
+   $ dd if=/dev/random of=random_data.bin bs=131072 count=100
+   ```
 
-__NB__: In the above command, the final /random/data need not contain the contents of the test data.
-This argument simply is used to document in the output, the common filename used across all hosts.
+   This command reads 100 blocks of 131,072 bytes (1,048,576 bits) from `/dev/random`.
 
-__NB__: The distributed mode of operation does not support generating the stats.txt and results.txt files with `-s`.
+2. **Run STS**:
 
-__NB__: Instead of each host reading from /random/data, sts may read from standard input (stdin)
-by specifying `-` as a data file.  Because job number seeking is disabled when reading data from standard input,
-a different part of the test data must be fed into each invocation of sts.
+   ```sh
+   $ ./sts -v 1 -i 100 -I 10 -w ./results -F r random_data.bin
+   ```
 
-## Project structure
+   - `-i 100`: Specifies 100 iterations (matching the `count` in `dd`).
+   - `-I 10`: Reports progress every 10 iterations.
+   - `-w ./results`: Outputs results to the `results` directory.
 
-The STS version 3 comes with three folders:
+**Testing a Hardware RNG Block Device**
 
-- *src*: contains the source code of the suite
-- *docs*: contains the papers explaining the underlying mathematical theory of the suite
-- *tools*: contains some tools we used during the improvement of the suite and the legacy generators' code
+Replace `/dev/random` with your hardware RNG device path (e.g., `/dev/hwrng`).
 
-## Improvements
+### Expected Results
 
-Our major improvement starts from source code of the [original source code of version 2.1.2][site] and consists in several
- bug fixes, code improvements and added documentation. Here are some of our improvements of the 3rd version:
+#### Interpreting P-values
 
-- Added an option to run tests in __batch mode__ (executed without human intervention)
-- Added __multi-threading__, to speed up the processing when multiple cores are available
-- Added __distributed run__ modes, which allow to run STS in multiple hosts and later collect assess the results.
-- Improved the __performance__ (execution time with a single thread is now about 50% shorter)
-- Fixed the implementation of the tests where bugs or inconsistencies with the paper were found
-- Eliminated the use of the global variables in the tests (now a struct state is instead passed around as pointer)
-- Eliminated the use of files to pass data during the execution of the suite (now memory is used instead)
-- Introduced a "driver-like" function interface to test functions (instead of one monolithic function for each test)
-- Added minimum __test conditions checks__ (now a test is disabled when its minimum requirements are not satisfied)
-- Moved the generators from the sts code into a separate tool
-- Improved the memory allocation patterns of each test
-- Eliminated the use of "__magic numbers__" (numeric values that were used without explanation)
-- Minimized the use of fixed size arrays, to prevent errors
-- Added __checks for errors__ on return from system functions
-- Added debugging, notice, warning and fatal error messages
-- Fixed the use of uninitialized values (some issues were caught with valgrind)
-- Improved the __precision__ of test constants (by using tools such as Mathematica and Calc)
-- Improved the variable names when they were confusing or had a name different than the one in the paper
-- Improved command line usage by adding __new flags__ (including a -h for usage help)
-- Improved the coding style to be more consistent and easier to understand
-- Added extensive and detailed __source code documentation__
-- Improved the __support for 64-bit processors__
-- Improved the Makefile to use best practices and to be more portable
-- Improved the __program output__ and the contents of the file with the final results
-- Added some comments and fixes to the NIST's paper: The [improved SP800-22 Rev 1a][improved-paper] is available.
-- Improved readability of the source code
-- Added the ability to read test data from standard input
-- Fixed the warnings reported by compilers and lint
-- Fixed memory leaks
+Each test produces a P-value indicating the probability that the observed sequence is random:
 
-## Features to add in the future
+- **P-value ≥ 0.01**: The sequence passes the test (random).
+- **P-value < 0.01**: The sequence fails the test (non-random).
 
-- Graphical visualization of the final p-values in a gnu-plot
-- New (non-approximate) entropy test
+#### NIST Compliance Criteria
 
-## Legacy generators usage
+For a sequence to be considered random according to NIST standards:
 
-In the original NIST code up through 3.1.2 of sts, 9 generators were built into the code.
-These generators were moved into a standalone tool called generators that is located in the tools directory.
+1. **Proportion of Passing Sequences**:
 
-The first numeric argument to generators tool is the generator number:
+   - At least 98% of the bitstreams should pass each test.
+   - For 100 bitstreams, at least 96 should pass.
+
+2. **Uniform Distribution of P-values**:
+
+   - P-values should be uniformly distributed between 0 and 1.
+   - Apply a chi-squared test to the P-values to assess uniformity.
+   - The P-value of the chi-squared test should be ≥ 0.0001.
+
+**Interpreting Results**:
+
+- **Proportional Failures**: If the proportion of passing sequences is below the threshold, the RNG may be flawed.
+- **Uniformity Failures**: If the P-values are not uniformly distributed, there may be underlying patterns.
+
+## Examples
+
+### Testing a Pseudo-Random Number Generator
+
+Use the built-in generators or your own PRNG:
+
+1. **Generate Data**:
+
+   ```sh
+   $ ./generators -i 32 1 32 > prng_data.bin
+   ```
+
+   - Generates data using Generator 1 (Linear Congruential).
+
+2. **Run STS**:
+
+   ```sh
+   $ ./sts -v 1 -i 32 -I 1 -w ./prng_results -F r prng_data.bin
+   ```
+
+### Testing a Hardware Random Number Generator
+
+Assuming your hardware RNG is accessible at `/dev/hwrng`:
+
+1. **Collect Data**:
+
+   ```sh
+   $ dd if=/dev/hwrng of=hwrng_data.bin bs=131072 count=100
+   ```
+
+2. **Run STS**:
+
+   ```sh
+   $ ./sts -v 1 -i 100 -I 10 -w ./hwrng_results -F r hwrng_data.bin
+   ```
+
+### Testing a Block Device
+
+To test a block device like a hard drive or SSD for randomness:
+
+1. **Collect Data**:
+
+   ```sh
+   $ sudo dd if=/dev/sdX of=block_device_data.bin bs=131072 count=100 skip=1000
+   ```
+
+   - Replace `/dev/sdX` with your block device.
+   - `skip=1000` skips the first 1000 blocks to avoid filesystem metadata.
+
+2. **Run STS**:
+
+   ```sh
+   $ ./sts -v 1 -i 100 -I 10 -w ./block_device_results -F r block_device_data.bin
+   ```
+
+**Note**: Testing block devices typically reveals non-randomness, as data stored is not random.
+
+## Advanced Usage
+
+### Distributed Mode
+
+For large datasets, STS supports distributed testing across multiple machines.
+
+#### Steps:
+
+1. **Determine Parameters**:
+
+   - Total number of iterations.
+   - Number of hosts (machines).
+
+2. **Assign Host Numbers**:
+
+   - Each host gets a unique number from `0` to `N-1`.
+
+3. **Run STS on Each Host**:
+
+   ```sh
+   $ ./sts -m i -w /work/dir -j host_number -i iterations -I progress_interval -v 1 /path/to/data
+   ```
+
+   - `-m i`: Run in testing mode, outputting P-values.
+   - `-j`: Specifies the job number (host number).
+
+4. **Collect P-values**:
+
+   - Gather `.pvalues` files from all hosts into a single directory.
+
+5. **Assess Results**:
+
+   ```sh
+   $ ./sts -m a -d /pvalues/dir -w /work/dir -v 1
+   ```
+
+   - `-m a`: Run in assessment mode, analyzing collected P-values.
+   - `-d`: Directory containing P-values.
+
+**Example**: See the original README for a detailed example with 32 hosts.
+
+## Project Structure
+
+- **src**: Source code of the suite.
+- **docs**: Documentation and theoretical papers.
+- **tools**: Auxiliary tools and legacy generator code.
+
+## Improvements Over Previous Versions
+
+- **Batch Mode**: Allows automated testing without user intervention.
+- **Multithreading**: Utilizes multiple CPU cores for faster processing.
+- **Distributed Testing**: Supports testing across multiple machines.
+- **Performance Enhancements**: Execution time reduced by approximately 50%.
+- **Bug Fixes**: Resolved inconsistencies with the NIST documentation.
+- **Code Refactoring**: Improved code structure, readability, and maintainability.
+- **Error Handling**: Added comprehensive error checks and messages.
+- **64-bit Support**: Enhanced support for modern processors.
+- **Documentation**: Extensive code comments and user guidance.
+- **Standard Input Support**: Can read test data from standard input.
+
+## Future Features
+
+- **Graphical Visualization**: Integration with Gnuplot for visualizing P-values.
+- **New Tests**: Addition of non-approximate entropy tests.
+
+## Legacy Generators Usage
+
+The original 9 generators are available in the `tools` directory as the `generators` tool.
+
+**Generators List**:
 
 1. Linear Congruential
 2. Quadratic Congruential I
 3. Quadratic Congruential II
 4. Cubic Congruential
-5. XOR based generator
+5. XOR-based Generator
 6. Modular Exponentiation
 7. Blum-Blum-Shub
 8. Micali-Schnorr
-9. SHA-1 based generator
+9. SHA-1 Based Generator
 
-The second numeric argument to generators tool is the number of 1 megabit (1048576 bits) chunks to write to output.
-
-To build the generators tool:
+**Build Generators**:
 
 ```sh
 $ cd tools
 $ make generators
 ```
 
-For more details, see the command line usage:
+**Usage**:
 
 ```sh
-$ ./generators -h
+$ ./generators -i iterations generator_number output_blocks > output_file
 ```
 
-For example, to test the first gigabit of the Quadratic Congruential II generator:
+**Example**:
 
 ```sh
-$ ./generators -i 64 3 1024 > /tmp/qc2.u8
-
+$ ./generators -i 64 3 1024 > qc2_data.bin
 $ cd ../src
 $ make
-
-$ ./sts -v 1 -i 1024 -I 32 /tmp/qc2.u8
+$ ./sts -v 1 -i 1024 -I 32 qc2_data.bin
 ```
 
-Refer to the `genall` script in the tools directory for information on how we generated the data in the [Google Drive sts-data
-folder][generatordata].
+Refer to the `genall` script in the `tools` directory for more information.
 
 ## Contributors
 
-The people who have so far contributed to this major improvement of the NIST STS are:
+- **Landon Curt Noll** ([lcn2](https://github.com/lcn2))
+- **Riccardo Paccagnella** ([ricpacca](https://github.com/ricpacca))
+- **Tom Gilgan** ([tgilgs](https://github.com/tgilgs))
 
-- Landon Curt Noll ([lcn2](https://github.com/lcn2))
-- Riccardo Paccagnella ([ricpacca](https://github.com/ricpacca))
-- Tom Gilgan ([tgilgs](https://github.com/tgilgs))
-
-By no means we believe we have fixed every last bug in this code. Moreover we do not doubt that we have introduced
-new bugs during our transformation. For any such new bugs, we apologize and welcome contributions that fix either old bugs
-or our newly introduced ones. Improvements to the documentation are also a very appreciated contribution.
-
-Please feel invited to contribute by creating a pull request to submit the code you would like to be included.
-
-You are very welcome to give us bug fixes and improvements in the form of a [GitHub Pull Request](https://github.com/arcetri/sts/pulls).
+We welcome contributions, bug fixes, and improvements. Please submit them via [GitHub Pull Requests](https://github.com/arcetri/sts/pulls).
 
 ## License
 
-The original software was developed at the National Institute of Standards and Technology by employees of the Federal Government
-in the course of their official duties. Pursuant to title 17 Section 105 of the United States Code this software is not subject
-to copyright protection and is in the public domain. Furthermore, Cisco's contribution is also placed in the public domain.
-The NIST Statistical Test Suite is an experimental system. Neither NIST nor Cisco assume any responsibility whatsoever for
-its use by other parties, and makes no guarantees, expressed or implied, about its quality, reliability, or any other
-characteristic. We would appreciate acknowledgment if the software is used.
+This software is in the public domain. It was developed at the National Institute of Standards and Technology by employees of the Federal Government in the course of their official duties. Cisco's contributions are also placed in the public domain.
 
-## Special thanks
+## Special Thanks
 
-Special thanks go to the original code developers. Without their efforts this modified code would not have been possible.
-The original NIST document, [original SP800-22Rev1a paper][original-paper], was extremely valuable to us.  Nevertheless we highly recommend using our [improved SP800-22Rev1a paper][improved-paper]!
-
-The above partial list of issues is presented to help explain why we extensively modified their original code.
-Our bug fixes are an expression of gratitude for their efforts.
-
-We also thank the original authors for making their code freely available. We saw the value of their efforts
-and set about the tasks of extending their code to situations they did not intend.
+We extend our gratitude to the original developers of the NIST STS and the authors of the [original SP800-22Rev1a paper][original-paper]. We recommend using our [improved SP800-22Rev1a paper][improved-paper] for better clarity and understanding.
 
 ## LavaRnd p.s.
 
-For an interest application of STS, see the [Detailed Description of Test Results and Conclusions from LavaRnd](https://lavarand.com/what/nist-test.html).  It may be useful to note the _Ranking methodology_ and in particular definition of _proportional failures_ vs. _uniformity failures_.
+For an example application of STS, see the [Detailed Description of Test Results and Conclusions from LavaRnd](https://lavarand.com/what/nist-test.html). It provides insights into the ranking methodology, including definitions of proportional failures and uniformity failures.
 
-[site]: <http://csrc.nist.gov/groups/ST/toolkit/rng/documentation_software.html>
-[original-paper]: <http://csrc.nist.gov/groups/ST/toolkit/rng/documents/SP800-22rev1a.pdf> (see the improved-paper link as well)
-[improved-paper]: <https://github.com/arcetri/sts/blob/master/docs/SP800-22rev1a-improved.pdf>
-[fftw]: <http://www.fftw.org>
+[site]: http://csrc.nist.gov/groups/ST/toolkit/rng/documentation_software.html
+[original-paper]: http://csrc.nist.gov/groups/ST/toolkit/rng/documents/SP800-22rev1a.pdf
+[improved-paper]: https://github.com/arcetri/sts/blob/master/docs/SP800-22rev1a-improved.pdf
+[fftw]: http://www.fftw.org
 [generatordata]: https://drive.google.com/drive/folders/0B-W1rjDbzOiLSVNJWFpkeUE0b1k?resourcekey=0-ogAKUlLH_EvkGEqA461tnQ&usp=sharing
